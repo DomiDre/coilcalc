@@ -7,11 +7,13 @@ pub struct Model {
     z_range: (f64, f64, usize),
     current_loops: Vec<CurrentLoop>,
     magnetic_field: Vec<Vec<(f64, f64, f64)>>,
-    base_length: f64
+    base_length: f64,
+    arrow_box_length: f64
 }
 
 pub enum Msg {
     UpdateView,
+    DragElement(DragEvent)
 }
 
 impl Component for Model {
@@ -19,34 +21,32 @@ impl Component for Model {
     type Properties = ();
     fn create(_: Self::Properties, link: ComponentLink<Self>) -> Self {
         let current_loops = vec![
-            CurrentLoop::new(0.0, 0.0, -9.0, 5.0, 1.0),
             CurrentLoop::new(0.0, 0.0, 0.0, 5.0, 1.0),
-            CurrentLoop::new(0.0, 0.0, 9.0, 5.0, 1.0),
         ];
-        let x_range = (-30.0, 31.0, 40);
-        let z_range = (-30.0, 31.0, 40);
+        let x_range = (-30.0, 30.0, 10);
+        let z_range = (-30.0, 30.0, 10);
         let magnetic_field = calculate_magnetic_field(&current_loops, &x_range, &z_range);
         let mut base_length = 0.0;
         let mut num = 0;
         for row in magnetic_field.iter() {
             for b_field in row.iter() {
                 let length = (b_field.0.powi(2) + b_field.1.powi(2) + b_field.2.powi(2)).sqrt();
-                if length > 1e6 {
-                    continue
-                }
                 base_length += length;
                 num += 1;
             }
         }
         base_length /= num as f64;
+        let view_width = 300.0; // width in pixel for the display image
+        let arrow_box_length = 100.0 / x_range.2 as f64; // edge of square containing 1 arrow
         Self {
             link,
-            view_width: 400.0,
+            view_width,
             x_range,
             z_range,
             current_loops,
             magnetic_field,
-            base_length
+            base_length,
+            arrow_box_length
         }
     }
 
@@ -56,22 +56,32 @@ impl Component for Model {
                 self.magnetic_field =
                     calculate_magnetic_field(&self.current_loops, &self.x_range, &self.z_range);
             }
+            Msg::DragElement(i) => {
+                //
+            }
         }
         true
     }
 
     fn view(&self) -> Html {
-        // let input_text = self.link.callback(|i: InputData| Msg::SetText(i.value));
+        let ondrag = self.link.callback(|i: DragEvent| Msg::DragElement(i));
         html! {
             <section class="app-container">
                 <header>
                     <h1>{"Coil Calculator"}</h1>
                 </header>
-                <main>
+                <main style="display: flex; flex-direction: column;">
+                    <div style="border: solid 1px black; background-color: #FAFAFA;">
+                        <svg viewBox="-10 -10 120 120" width=format!("{}", self.view_width)>
+                            { self.display_magnetic_field() }
+                            // <rect x="4" y="5" width="8" height="10" fill="#007bff" style="cursor: move"/>
+                            // <rect x="18" y="5" width="8" height="10"   fill="#888" style="cursor: not-allowed"/>
+                        </svg>
+                    </div>
+                    <div style="border: solid 1px black; background-color: #FAFAFA;">
+                        { "Options "}
+                    </div>
                 </main>
-                <output>
-                    { self.display_magnetic_field() }
-                </output>
             </section>
         }
     }
@@ -80,50 +90,50 @@ impl Component for Model {
 impl Model {
     fn display_magnetic_field(&self) -> Html {
         html! {
-            <div style=format!("border: black solid 1px; width: {}px;", self.view_width)>
-                { for self.magnetic_field.iter().rev().map(|row| self.display_row(row)) }
-            </div>
+            <>
+                { for self.magnetic_field.iter().enumerate().map(|(i, row)| self.display_row(i, row)) }
+            </>
         }
     }
 
-    fn display_row(&self, row: &Vec<(f64, f64, f64)>) -> Html {
+    fn display_row(&self, idx_row: usize, row: &Vec<(f64, f64, f64)>) -> Html {
         html! {
-            <div style="display:flex;">
-                { for row.iter().map(|b_field| self.draw_unit_arrow(b_field)) }
-            </div>
+            <>
+                { for row.iter().enumerate().map(|(idx_col, b_field)| self.draw_unit_arrow(idx_row, idx_col, b_field)) }
+            </>
         }
     }
 
-    fn draw_unit_arrow(&self, vector: &(f64, f64, f64)) -> Html {
+    fn draw_unit_arrow(&self, idx_row: usize, idx_col: usize, vector: &(f64, f64, f64)) -> Html {
         let length = (vector.0.powi(2) + vector.1.powi(2) + vector.2.powi(2)).sqrt();
 
         // display in x-z plane
         let angle = (vector.2).atan2(vector.0);
         let cos_phi = angle.cos();
         let sin_phi = angle.sin();
-        let half_length = 20.0;
-        let center = 50.0;
+        let half_length = self.arrow_box_length/4.0;
+        let center_x = (idx_col as f64 + 0.5)*self.arrow_box_length;
+        let center_y = (idx_row as f64 + 0.5)*self.arrow_box_length;
         let from = (
-            center - half_length * cos_phi,
-            center - half_length * sin_phi,
+            center_x - half_length * cos_phi,
+            center_y - half_length * sin_phi,
         );
         let to = (
-            center + half_length * cos_phi,
-            center + half_length * sin_phi,
+            center_x + half_length * cos_phi,
+            center_y + half_length * sin_phi,
         );
         self.draw_arrow(from, to, length/self.base_length)
     }
 
     fn draw_arrow(&self, from: (f64, f64), to: (f64, f64), magnitude: f64) -> Html {
-        let view_limit = 100.0;
         let red = 0.0 + magnitude*255.0;
         let blue = 0.0;// + magnitude*255.0;
         let green = 0.0;// + magnitude*255.0;
         let color = format!("rgb({},{},{})", red, green, blue);
         let id = format!("arrow_{}", magnitude);
+        let stroke = self.arrow_box_length/100.0*4.0;
         html! {
-            <svg viewBox=format!("0 0 {} {}", view_limit, view_limit)
-                width=format!("{}", self.view_width/(self.x_range.2 as f64))>
+            <>
                 // arrow head
                 <defs>
                     <marker id=id
@@ -134,11 +144,11 @@ impl Model {
                 </defs>
 
                 // arrow tail
-                <path d=format!("M{},{} L{},{}", from.0, view_limit-from.1, to.0, view_limit-to.1)
-                    style=format!("stroke:{}; stroke-width: 4px; fill: none;
-                            marker-end: url(#{});", color, id)
+                <path d=format!("M{},{} L{},{}", from.0, 100.0-from.1, to.0, 100.0-to.1)
+                    style=format!("stroke:{}; stroke-width: {}px; fill: none;
+                            marker-end: url(#{});", color, stroke, id)
                 />
-            </svg>
+            </>
         }
     }
 }
