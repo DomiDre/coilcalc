@@ -1,9 +1,9 @@
 use crate::utils::complete_elliptic_integrals;
 
 pub struct CurrentLoop {
-    r_center: (f64, f64, f64),
-    radius: f64,
-    current: f64,
+    pub r_center: (f64, f64, f64),
+    pub radius: f64,
+    pub current: f64,
 }
 
 impl CurrentLoop {

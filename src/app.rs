@@ -1,5 +1,10 @@
 use crate::current_loop::{calculate_magnetic_field, CurrentLoop};
 use yew::prelude::*;
+
+use yew::services::{ConsoleService};
+use stdweb::traits::{IEvent, IHtmlElement};
+use stdweb::web::{HtmlElement};
+
 pub struct Model {
     link: ComponentLink<Self>,
     view_width: f64,
@@ -8,12 +13,16 @@ pub struct Model {
     current_loops: Vec<CurrentLoop>,
     magnetic_field: Vec<Vec<(f64, f64, f64)>>,
     base_length: f64,
-    arrow_box_length: f64
+    arrow_box_length: f64,
+    console: ConsoleService,
+    selectedCoil: Option<usize>
 }
 
 pub enum Msg {
-    UpdateView,
-    DragElement(DragEvent)
+    // UpdateView,
+    // DragStart(usize),
+    // Drag(MouseMoveEvent),
+    // DragStop(),
 }
 
 impl Component for Model {
@@ -23,8 +32,8 @@ impl Component for Model {
         let current_loops = vec![
             CurrentLoop::new(0.0, 0.0, 0.0, 5.0, 1.0),
         ];
-        let x_range = (-30.0, 30.0, 10);
-        let z_range = (-30.0, 30.0, 10);
+        let x_range = (-30.0, 30.0, 30);
+        let z_range = (-30.0, 30.0, 30);
         let magnetic_field = calculate_magnetic_field(&current_loops, &x_range, &z_range);
         let mut base_length = 0.0;
         let mut num = 0;
@@ -46,25 +55,42 @@ impl Component for Model {
             current_loops,
             magnetic_field,
             base_length,
-            arrow_box_length
+            arrow_box_length,
+            console: ConsoleService::new(),
+            selectedCoil: None
         }
     }
 
     fn update(&mut self, msg: Self::Message) -> ShouldRender {
         match msg {
-            Msg::UpdateView => {
-                self.magnetic_field =
-                    calculate_magnetic_field(&self.current_loops, &self.x_range, &self.z_range);
-            }
-            Msg::DragElement(i) => {
-                //
-            }
+            // Msg::UpdateView => {
+            //     self.magnetic_field =
+            //         calculate_magnetic_field(&self.current_loops, &self.x_range, &self.z_range);
+            // }
+            // Msg::DragStart(idx) => {
+            //     self.console.log("Start");
+            //     self.selectedCoil = Some(idx);
+            // }
+            // Msg::Drag(evt) => {
+            //     self.console.log(format!("Going: {:?} {}", evt.current_target().unwrap(), evt.client_y()).as_ref());
+            //     // self.console.log(format!("Going: {:?}", evt.cancelable()).as_ref());
+            //     if let Some(idx) = self.selectedCoil {
+            //         let mut cur_loop = self.current_loops.get_mut(idx).unwrap();
+            //         cur_loop.r_center.0 += evt.movement_x() as f64;
+            //         cur_loop.r_center.2 += evt.movement_y() as f64;
+                    
+            //         // self.console.log(format!("Going: {} {}", evt.client_x(), evt.screen_x()).as_ref());
+            //     }
+            // }
+            // Msg::DragStop() => {
+            //     self.console.log("Stop");
+            //     self.selectedCoil = None;
+            // }
         }
         true
     }
 
     fn view(&self) -> Html {
-        let ondrag = self.link.callback(|i: DragEvent| Msg::DragElement(i));
         html! {
             <section class="app-container">
                 <header>
@@ -74,13 +100,12 @@ impl Component for Model {
                     <div style="border: solid 1px black; background-color: #FAFAFA;">
                         <svg viewBox="-10 -10 120 120" width=format!("{}", self.view_width)>
                             { self.display_magnetic_field() }
-                            // <rect x="4" y="5" width="8" height="10" fill="#007bff" style="cursor: move"/>
-                            // <rect x="18" y="5" width="8" height="10"   fill="#888" style="cursor: not-allowed"/>
+                            { self.display_current_loops() }
                         </svg>
                     </div>
-                    <div style="border: solid 1px black; background-color: #FAFAFA;">
-                        { "Options "}
-                    </div>
+                    // <div style="border: solid 1px black; background-color: #FAFAFA;">
+                    //     { "Options "}
+                    // </div>
                 </main>
             </section>
         }
@@ -147,6 +172,37 @@ impl Model {
                 <path d=format!("M{},{} L{},{}", from.0, 100.0-from.1, to.0, 100.0-to.1)
                     style=format!("stroke:{}; stroke-width: {}px; fill: none;
                             marker-end: url(#{});", color, stroke, id)
+                />
+            </>
+        }
+    }
+
+    fn display_current_loops(&self) -> Html {
+        html! {
+            <>
+                { for self.current_loops.iter().enumerate().map(|(idx, current_loop)| self.draw_circle(idx, current_loop)) }
+            </>
+        }
+    }
+
+    fn draw_circle(&self, idx: usize, current_loop: &CurrentLoop ) -> Html {
+        // let on_start_drag = self.link.callback(move |_| Msg::DragStart(idx));
+        // let on_drag = self.link.callback(move |evt: MouseMoveEvent| Msg::Drag(evt));
+        // let on_stop_drag = self.link.callback(|_| Msg::DragStop());
+        // let on_mouse_leave = self.link.callback(|_| Msg::DragStop());
+        html! {
+            <>
+                <circle
+                cx={(current_loop.r_center.0-current_loop.radius-self.x_range.0)*100.0/(self.x_range.1-self.x_range.0)}
+                cy={(current_loop.r_center.2-self.z_range.0)*100.0/(self.z_range.1-self.z_range.0)}
+                r="5" fill="#ff8300"
+                draggable="true"
+                // onmousedown=on_start_drag onmousemove=on_drag onmouseup=on_stop_drag onmouseleave=on_mouse_leave
+                />
+                <circle
+                cx={(current_loop.r_center.0+current_loop.radius-self.x_range.0)*100.0/(self.x_range.1-self.x_range.0)}
+                cy={(current_loop.r_center.2-self.z_range.0)*100.0/(self.z_range.1-self.z_range.0)}
+                r="5" fill="#ff8300" style="cursor: move"
                 />
             </>
         }
