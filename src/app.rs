@@ -1,9 +1,7 @@
 use crate::current_loop::{calculate_magnetic_field, CurrentLoop};
 use yew::prelude::*;
 
-use yew::services::{ConsoleService};
-use stdweb::traits::{IEvent, IHtmlElement};
-use stdweb::web::{HtmlElement};
+use stdweb::unstable::TryInto;
 
 pub struct Model {
     link: ComponentLink<Self>,
@@ -14,15 +12,15 @@ pub struct Model {
     magnetic_field: Vec<Vec<(f64, f64, f64)>>,
     base_length: f64,
     arrow_box_length: f64,
-    console: ConsoleService,
-    selectedCoil: Option<usize>
+    selected_coil: Option<usize>
 }
 
 pub enum Msg {
-    // UpdateView,
-    // DragStart(usize),
-    // Drag(MouseMoveEvent),
-    // DragStop(),
+    UpdateView,
+    DragStart(usize),
+    DragMouseMove(MouseMoveEvent),
+    DragMouseLeave(MouseLeaveEvent),
+    DragStop(),
 }
 
 impl Component for Model {
@@ -32,8 +30,8 @@ impl Component for Model {
         let current_loops = vec![
             CurrentLoop::new(0.0, 0.0, 0.0, 5.0, 1.0),
         ];
-        let x_range = (-30.0, 30.0, 30);
-        let z_range = (-30.0, 30.0, 30);
+        let x_range = (-30.0, 30.0, 20);
+        let z_range = (-30.0, 30.0, 20);
         let magnetic_field = calculate_magnetic_field(&current_loops, &x_range, &z_range);
         let mut base_length = 0.0;
         let mut num = 0;
@@ -56,36 +54,28 @@ impl Component for Model {
             magnetic_field,
             base_length,
             arrow_box_length,
-            console: ConsoleService::new(),
-            selectedCoil: None
+            selected_coil: None
         }
     }
 
     fn update(&mut self, msg: Self::Message) -> ShouldRender {
         match msg {
-            // Msg::UpdateView => {
-            //     self.magnetic_field =
-            //         calculate_magnetic_field(&self.current_loops, &self.x_range, &self.z_range);
-            // }
-            // Msg::DragStart(idx) => {
-            //     self.console.log("Start");
-            //     self.selectedCoil = Some(idx);
-            // }
-            // Msg::Drag(evt) => {
-            //     self.console.log(format!("Going: {:?} {}", evt.current_target().unwrap(), evt.client_y()).as_ref());
-            //     // self.console.log(format!("Going: {:?}", evt.cancelable()).as_ref());
-            //     if let Some(idx) = self.selectedCoil {
-            //         let mut cur_loop = self.current_loops.get_mut(idx).unwrap();
-            //         cur_loop.r_center.0 += evt.movement_x() as f64;
-            //         cur_loop.r_center.2 += evt.movement_y() as f64;
-                    
-            //         // self.console.log(format!("Going: {} {}", evt.client_x(), evt.screen_x()).as_ref());
-            //     }
-            // }
-            // Msg::DragStop() => {
-            //     self.console.log("Stop");
-            //     self.selectedCoil = None;
-            // }
+            Msg::UpdateView => {
+                self.magnetic_field =
+                    calculate_magnetic_field(&self.current_loops, &self.x_range, &self.z_range);
+            }
+            Msg::DragStart(idx) => {
+                self.selected_coil = Some(idx);
+            }
+            Msg::DragMouseMove(evt) => {
+                self.update_current_loop_position(evt.client_x() as f64, evt.client_y() as f64);
+            }
+            Msg::DragMouseLeave(evt) => {
+                self.update_current_loop_position(evt.client_x() as f64, evt.client_y() as f64);
+            }
+            Msg::DragStop() => {
+                self.selected_coil = None;
+            }
         }
         true
     }
@@ -98,7 +88,7 @@ impl Component for Model {
                 </header>
                 <main style="display: flex; flex-direction: column;">
                     <div style="border: solid 1px black; background-color: #FAFAFA;">
-                        <svg viewBox="-10 -10 120 120" width=format!("{}", self.view_width)>
+                        <svg id="arrow_plot" viewBox="-10 -10 120 120" width=format!("{}", self.view_width)>
                             { self.display_magnetic_field() }
                             { self.display_current_loops() }
                         </svg>
@@ -169,7 +159,7 @@ impl Model {
                 </defs>
 
                 // arrow tail
-                <path d=format!("M{},{} L{},{}", from.0, 100.0-from.1, to.0, 100.0-to.1)
+                <path d=format!("M{},{} L{},{}", from.0, from.1, to.0, to.1)
                     style=format!("stroke:{}; stroke-width: {}px; fill: none;
                             marker-end: url(#{});", color, stroke, id)
                 />
@@ -186,25 +176,40 @@ impl Model {
     }
 
     fn draw_circle(&self, idx: usize, current_loop: &CurrentLoop ) -> Html {
-        // let on_start_drag = self.link.callback(move |_| Msg::DragStart(idx));
-        // let on_drag = self.link.callback(move |evt: MouseMoveEvent| Msg::Drag(evt));
-        // let on_stop_drag = self.link.callback(|_| Msg::DragStop());
-        // let on_mouse_leave = self.link.callback(|_| Msg::DragStop());
+        let on_start_drag = self.link.callback(move |_| Msg::DragStart(idx));
+        let on_drag = self.link.callback(move |evt: MouseMoveEvent| Msg::DragMouseMove(evt));
+        let on_mouse_leave = self.link.callback(|evt: MouseLeaveEvent| Msg::DragMouseLeave(evt));
+        let on_stop_drag = self.link.callback(|_| Msg::DragStop());
         html! {
             <>
                 <circle
                 cx={(current_loop.r_center.0-current_loop.radius-self.x_range.0)*100.0/(self.x_range.1-self.x_range.0)}
                 cy={(current_loop.r_center.2-self.z_range.0)*100.0/(self.z_range.1-self.z_range.0)}
                 r="5" fill="#ff8300"
-                draggable="true"
-                // onmousedown=on_start_drag onmousemove=on_drag onmouseup=on_stop_drag onmouseleave=on_mouse_leave
+                draggable="true" style="cursor: move"
+                onmousedown=on_start_drag onmousemove=on_drag onmouseup=on_stop_drag onmouseleave=on_mouse_leave
                 />
                 <circle
                 cx={(current_loop.r_center.0+current_loop.radius-self.x_range.0)*100.0/(self.x_range.1-self.x_range.0)}
                 cy={(current_loop.r_center.2-self.z_range.0)*100.0/(self.z_range.1-self.z_range.0)}
-                r="5" fill="#ff8300" style="cursor: move"
+                r="5" fill="#ff8300"
                 />
             </>
+        }
+    }
+
+    fn update_current_loop_position(&mut self, client_x: f64, client_y: f64) {
+        if let Some(idx) = self.selected_coil {
+            let screen_ctm = js! {
+                const screenCTM = document.getElementById("arrow_plot").getScreenCTM();
+                return [screenCTM.a, screenCTM.b, screenCTM.c, screenCTM.d, screenCTM.e, screenCTM.f];
+            };
+            let screen_ctm: Vec<f64> = screen_ctm.try_into().unwrap();
+            let mut cur_loop = self.current_loops.get_mut(idx).unwrap();
+            cur_loop.r_center.0 = ((client_x - screen_ctm[4]) / screen_ctm[0])*(self.x_range.1 - self.x_range.0)/100.0 + self.x_range.0 + cur_loop.radius;
+            cur_loop.r_center.2 = ((client_y - screen_ctm[5]) / screen_ctm[3])*(self.z_range.1 - self.z_range.0)/100.0 + self.z_range.0;
+            self.magnetic_field =
+                calculate_magnetic_field(&self.current_loops, &self.x_range, &self.z_range);
         }
     }
 }

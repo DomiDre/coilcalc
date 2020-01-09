@@ -6,6 +6,10 @@ loops.
 
 */
 #![recursion_limit = "512"]
+
+#[macro_use]
+extern crate stdweb;
+
 pub mod current_loop;
 pub mod utils;
 use wasm_bindgen::prelude::*;
