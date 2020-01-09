@@ -73,8 +73,8 @@ pub fn calculate_magnetic_field(
     x_range: &(f64, f64, usize),
     z_range: &(f64, f64, usize),
 ) -> Vec<Vec<(f64, f64, f64)>> {
-    let dx = (x_range.1 - x_range.0) / (x_range.2 as f64);
-    let dz = (z_range.1 - z_range.0) / (z_range.2 as f64);
+    let dx = (x_range.1 - x_range.0) / ((x_range.2 - 1) as f64);
+    let dz = (z_range.1 - z_range.0) / ((z_range.2 - 1) as f64);
     let mut magnetic_field = Vec::new();
     for i_z in 0..z_range.2 {
         let z = z_range.0 + (i_z as f64) * dz;
