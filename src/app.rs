@@ -28,7 +28,7 @@ impl Component for Model {
     type Properties = ();
     fn create(_: Self::Properties, link: ComponentLink<Self>) -> Self {
         let current_loops = vec![
-            CurrentLoop::new(0.0, 0.0, 0.0, 5.0, 1.0),
+            CurrentLoop::new(0.0, 0.0, 0.0, 5.0, 1.0)
         ];
         let x_range = (-30.0, 30.0, 20);
         let z_range = (-30.0, 30.0, 20);
@@ -93,9 +93,14 @@ impl Component for Model {
                             { self.display_current_loops() }
                         </svg>
                     </div>
-                    // <div style="border: solid 1px black; background-color: #FAFAFA;">
-                    //     { "Options "}
-                    // </div>
+                    <div style="display: flex; justify-content: flex-end;">
+                        <a href="https://github.com/DomiDre/coilcalc/" target="_blank" rel="noopener">
+                            <img style="width: 30px; cursor: pointer;" src="github.svg"/>
+                        </a>
+                        <a href="https://twitter.com/DomiDre" target="_blank" rel="noopener">
+                            <img style="width: 30px; cursor: pointer;" src="twitter.svg"/>
+                        </a>
+                    </div>
                 </main>
             </section>
         }
